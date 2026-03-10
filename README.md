@@ -1,75 +1,64 @@
 # openclaw
 
-azureuser@openclaw:~$ sudo useradd openclaw
 
-azureuser@openclaw:~$ sudo passwd openclaw 
-New password: 
-Retype new password: 
-passwd: password updated successfully
-azureuser@openclaw:~$ sudo usermod -aG sudo openclaw
-azureuser@openclaw:~$ id openclaw
-uid=1001(openclaw) gid=1001(openclaw) groups=1001(openclaw),27(sudo)
 
-azureuser@openclaw:~$ sudo mkdir -p /home/openclaw/.ssh 
-azureuser@openclaw:~$ sudo cp -rp /home/azureuser/.ssh/authorized_keys /home/openclaw/.ssh 
-azureuser@openclaw:~$ sudo chown -R openclaw:openclaw /home/openclaw/.ssh 
-azureuser@openclaw:~$ sudo chmod 700 /home/openclaw/.ssh
-azureuser@openclaw:~$ sudo chmod 600 /home/openclaw/.ssh/authorized_keys
+# OpenClaw Server Setup Guide
 
-azureuser@openclaw:~$ sudo ufw default deny incoming 
-Default incoming policy changed to 'deny'
-(be sure to update your rules accordingly)
-azureuser@openclaw:~$ sudo ufw default allow outgoing 
-Default outgoing policy changed to 'allow'
-(be sure to update your rules accordingly)
-azureuser@openclaw:~$ sudo ufw allow 22/tcp
-Rules updated
-Rules updated (v6)
-azureuser@openclaw:~$ sudo ufw allow 2222/tcp
-Rules updated
-Rules updated (v6)
-azureuser@openclaw:~$ sudo ufw enable 
-Command may disrupt existing ssh connections. Proceed with operation (y|n)? y
-Firewall is active and enabled on system startup
+This document outlines the steps to configure a new user, secure SSH access, and set up firewall rules on Ubuntu 24.04.3 LTS for the OpenClaw server.
 
- ~/Downloads   main ● ?  ssh -i openclaw_key.pem openclaw@20.40.208.164                                                                    ✔  10271  10:32:16 
-Welcome to Ubuntu 24.04.3 LTS (GNU/Linux 6.14.0-1017-azure x86_64)
+---
 
-openclaw@openclaw:~$ sudo vi /etc/ssh/sshd_config
-[sudo] password for openclaw: 
+## 1. Create a new user
 
-chnage the below values and uncomment 
+```bash
+sudo useradd openclaw
+sudo passwd openclaw  # Set password
+sudo usermod -aG sudo openclaw
+id openclaw  # Verify user and groups
 
-#change Port from 22 To 2222
+2. Configure SSH Key Authentication
 
-PORT 2222
+sudo mkdir -p /home/openclaw/.ssh
+sudo cp -rp /home/azureuser/.ssh/authorized_keys /home/openclaw/.ssh
+sudo chown -R openclaw:openclaw /home/openclaw/.ssh
+sudo chmod 700 /home/openclaw/.ssh
+sudo chmod 600 /home/openclaw/.ssh/authorized_keys
 
-# Permit Root Login to NO
+3. Configure Firewall (UFW)
 
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow 22/tcp      # Optional if legacy port needed temporarily
+sudo ufw allow 2222/tcp    # New SSH port
+sudo ufw enable
+
+
+4. Harden SSH Configuration
+Edit /etc/ssh/sshd_config:
+
+# Change default SSH port
+Port 2222
+
+# Disable root login
 PermitRootLogin no
 
-#PasswordAuthentication from yes To no
-
+# Disable password authentication
 PasswordAuthentication no
 
-openclaw@openclaw:~$ sudo systemctl stop ssh.socket
-openclaw@openclaw:~$ sudo systemctl restart ssh
-openclaw@openclaw:~$ sudo ss -tulpn | grep ssh 
-tcp   LISTEN 0      4096           0.0.0.0:22        0.0.0.0:*    users:(("sshd",pid=7372,fd=3),("systemd",pid=1,fd=69))
-tcp   LISTEN 0      4096              [::]:22           [::]:*    users:(("sshd",pid=7372,fd=4),("systemd",pid=1,fd=79))
+Restart ssh
 
-# Disable Systemd Socket Activation (CRITICAL)  Ubuntu 24.04 uses socket activation which holds Port 22 open regardless of what you put in sshd_config you must disable.
+sudo systemctl stop ssh.socket          # Stop socket activation
+sudo systemctl disable ssh.socket       # Disable socket activation
+sudo systemctl restart ssh
+sudo ss -tulpn | grep ssh               # Verify SSH is listening on port 2222
 
-$ sudo systemctl disable ssh.socket 
-[sudo] password for openclaw: 
-Removed "/etc/systemd/system/ssh.service.requires/ssh.socket".
-Removed "/etc/systemd/system/sockets.target.wants/ssh.socket".
+5. Connect to the Server
 
-$ sudo systemctl restart ssh
+ssh -p 2222 -i openclaw_key.pem openclaw@<SERVER_IP>
 
-openclaw@openclaw:~$ sudo ss -tulpn | grep ssh 
-tcp   LISTEN 0      128            0.0.0.0:2222      0.0.0.0:*    users:(("sshd",pid=7633,fd=3))            
-tcp   LISTEN 0      128               [::]:2222         [::]:*    users:(("sshd",pid=7633,fd=4))    
+Notes
+Critical: On Ubuntu 24.04, systemd socket activation can keep port 22 open. Ensure ssh.socket is disabled.
 
-ssh -p 2222 -i openclaw_key.pem openclaw@20.40.208.164                                                            ✔  10274  10:57:43 
-Welcome to Ubuntu 24.04.3 LTS (GNU/Linux 6.14.0-1017-azure x86_64)
+
+
+  
